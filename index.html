@@ -43,7 +43,7 @@
 'use strict';
 
 /* =========================================================
-   РАЗДЕЛЫ (20)
+   РАЗДЕЛЫ (22)
    ========================================================= */
 var SECTIONS = {
   literature:   { name: 'Литература',      desc: 'Художественная словесность' },
@@ -66,9 +66,9 @@ var SECTIONS = {
   medicine:     { name: 'Медицина',        desc: 'Врачевание' },
   law:          { name: 'Право',           desc: 'Закон' },
   economics:    { name: 'Экономика',       desc: 'Хозяйство' },
-  japanese:     { name: 'JAPANESE | 日本語',   desc: '' },
+  japanese:     { name: 'JAPANESE | 日本語',   desc: 'Японский язык и все что с ним связано' },
   english:      { name: 'ENGLISH',             desc: '' },
-  it:           { name: 'IT',                  desc: '' }
+  it:           { name: 'IT',                  desc: 'Изучение английского' }
 
 
 };
@@ -400,7 +400,7 @@ function renderHome() {
     html += '</ul>';
   }
 
-  html += '<h3>Разделы (20)</h3>';
+  html += '<h3>Разделы (22)</h3>';
   html += '<ul>';
   for (var k in SECTIONS) {
     html += '<li><a href="#" data-action="section" data-section="' + k + '">' + esc(SECTIONS[k].name) + '</a> - ' + esc(SECTIONS[k].desc) + '</li>';
