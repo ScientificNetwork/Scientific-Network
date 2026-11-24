@@ -648,5 +648,138 @@
       }
     }
   };
+  /* ---------- 9. Статус Online и упоминания @никнейм ---------- */
+  var lastPingSent = 0;
+  function pingOnline() {
+    var me = currentUser();
+    if (!me || typeof getUsers !== 'function') return;
+    var now = Date.now();
+    if (now - lastPingSent < 40000) return; // обновляем статус не чаще раза в 40 сек
+    lastPingSent = now;
+    var users = getUsers();
+    for (var i = 0; i < users.length; i++) {
+      if (users[i].login === me) {
+        users[i].lastSeen = now;
+        saveUsers(users);
+        break;
+      }
+    }
+  }
+
+  function getOnlineBadge(login) {
+    var u = typeof getUser === 'function' ? getUser(login) : null;
+    if (!u || !u.lastSeen) return '';
+    var diff = Date.now() - u.lastSeen;
+    if (diff < 180000) { // меньше 3 минут — значит в сети
+      return ' <span style="color:#2b8a3e;font-weight:bold;font-size:11px;">● online</span>';
+    }
+    return ' <small style="color:#888;">(был(а) в сети ' + fmtAgo(u.lastSeen) + ')</small>';
+  }
+
+  /* Подсветка @никнеймов в тексте постов и комментариев */
+  function linkifyMentions(html) {
+    if (!html || html.indexOf('@') < 0) return html;
+    var users = typeof getUsers === 'function' ? getUsers() : [];
+    if (!users.length) return html;
+    var map = {};
+    for (var i = 0; i < users.length; i++) {
+      map[users[i].login.toLowerCase()] = users[i].login;
+    }
+    return html.replace(/(^|[\s(>])@([A-Za-zА-Яа-яЁё0-9_\-\.]{3,})/g, function (match, prefix, nick) {
+      var realLogin = map[nick.toLowerCase()];
+      if (!realLogin) return match;
+      return prefix + '<a href="#" data-action="profile" data-arg="' + esc(realLogin) + '" style="font-weight:bold;">@' + esc(realLogin) + '</a>';
+    });
+  }
+
+  /* Оборачиваем вывод постов и комментариев для @упоминаний */
+  var _postHtmlMentions = postHtml;
+  postHtml = function (p, opts) {
+    return linkifyMentions(_postHtmlMentions(p, opts));
+  };
+
+  /* Отправка уведомлений при упоминании @ник в новом посте или комментарии */
+  var _savePostsMentions = savePosts;
+  savePosts = function (list) {
+    try {
+      var oldList = getPosts();
+      var me = currentUser();
+      if (me && Array.isArray(list)) {
+        var checkText = function (text, postId, label) {
+          if (!text || text.indexOf('@') < 0) return;
+          var matches = text.match(/@([A-Za-zА-Яа-яЁё0-9_\-\.]{3,})/g) || [];
+          var notified = {};
+          for (var m = 0; m < matches.length; m++) {
+            var nick = matches[m].slice(1);
+            var target = getUser(nick);
+            if (!target) {
+              var allU = getUsers();
+              for (var k = 0; k < allU.length; k++) {
+                if (allU[k].login.toLowerCase() === nick.toLowerCase()) { target = allU[k]; break; }
+              }
+            }
+            if (target && target.login !== me && !notified[target.login]) {
+              notified[target.login] = true;
+              if (typeof addNotif === 'function') {
+                addNotif(target.login, me, 'mention', me + ' упомянул(а) вас' + label, { postId: postId });
+              }
+            }
+          }
+        };
+
+        /* Проверяем только самую свежую запись или самый свежий комментарий */
+        if (list.length > oldList.length) {
+          var newest = list[list.length - 1];
+          if (newest && newest.author === me) {
+            checkText(newest.text, newest.id, newest.title ? ' в статье «' + newest.title + '»' : ' в записи на стене');
+          }
+        } else {
+          for (var i = 0; i < list.length; i++) {
+            var np = list[i], op = oldList[i];
+            if (np && op && np.id === op.id && (np.comments || []).length > (op.comments || []).length) {
+              var lastCm = np.comments[np.comments.length - 1];
+              if (lastCm && lastCm.author === me) {
+                checkText(lastCm.text, np.id, ' в комментарии');
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {}
+    _savePostsMentions(list);
+  };
+
+  /* Отображаем статус online в профиле и в списке людей */
+  var _showPageOnline = showPage;
+  showPage = function (name, arg) {
+    _showPageOnline(name, arg);
+    pingOnline();
+
+    if (name === 'profile') {
+      var targetLogin = arg || currentUser();
+      var h2 = $('page-profile') ? $('page-profile').querySelector('h2') : null;
+      if (h2 && targetLogin && !h2.getAttribute('data-onlined')) {
+        h2.setAttribute('data-onlined', '1');
+        h2.insertAdjacentHTML('beforeend', getOnlineBadge(targetLogin));
+      }
+    }
+
+    if (name === 'profiles' && $('page-profiles')) {
+      var items = $('page-profiles').querySelectorAll('li');
+      for (var i = 0; i < items.length; i++) {
+        var link = items[i].querySelector('a[data-action="profile"]');
+        if (!link || items[i].getAttribute('data-onlined')) continue;
+        items[i].setAttribute('data-onlined', '1');
+        var login = link.getAttribute('data-arg');
+        if (login) {
+          var badgeTarget = items[i].querySelector('span') || link;
+          badgeTarget.insertAdjacentHTML('afterend', getOnlineBadge(login));
+        }
+      }
+    }
+  };
+
+  setTimeout(pingOnline, 2000);
+  setInterval(pingOnline, 45000);
 
 })();
