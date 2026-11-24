@@ -781,5 +781,77 @@
 
   setTimeout(pingOnline, 2000);
   setInterval(pingOnline, 45000);
+  /* ---------- 10. Переключатель тёмной темы ---------- */
+  var THEME_KEY = 'sn_dark_theme_v1';
+
+  var darkStyle = document.createElement('style');
+  darkStyle.textContent =
+    'html.sn-dark { background: #0d0e11; }\n' +
+    'html.sn-dark body { background: #16181c; color: #d8dee9; border-color: #2b303a; }\n' +
+    'html.sn-dark a { color: #7aa2f7; }\n' +
+    'html.sn-dark nav { background: #1e2127; border-top-color: #6b1414; border-bottom-color: #2b303a; }\n' +
+    'html.sn-dark nav a { color: #8ab4f8; border-right-color: #2b303a; }\n' +
+    'html.sn-dark nav a:hover { background: #272b33; }\n' +
+    'html.sn-dark nav b { color: #c0caf5; }\n' +
+    'html.sn-dark h2 { color: #8ab4f8; border-bottom-color: #2b303a; }\n' +
+    'html.sn-dark h3 { background: #1e2127; border-color: #2b303a; color: #8ab4f8; }\n' +
+    'html.sn-dark article { background: #1b1e24; border-color: #2b303a; }\n' +
+    'html.sn-dark article h3 { background: none; }\n' +
+    'html.sn-dark article img, html.sn-dark article video, html.sn-dark #page-gallery img, html.sn-dark #page-gallery video { border-color: #2b303a; }\n' +
+    'html.sn-dark details { border-top-color: #2b303a; }\n' +
+    'html.sn-dark summary { color: #8ab4f8; }\n' +
+    'html.sn-dark small, html.sn-dark .desc { color: #8892a4; }\n' +
+    'html.sn-dark li { border-bottom-color: #2b303a; }\n' +
+    'html.sn-dark input[type="text"], html.sn-dark input[type="password"], html.sn-dark input[type="number"], ' +
+    'html.sn-dark input[type="search"], html.sn-dark textarea, html.sn-dark select, html.sn-dark #wall-editor { ' +
+      'background: #121418 !important; color: #e5e9f0 !important; border-color: #363c48 !important; }\n' +
+    'html.sn-dark label { color: #a9b1d6; }\n' +
+    'html.sn-dark button, html.sn-dark a[data-action="convo"] { background: #2f5079; border-color: #3d6496; color: #fff; }\n' +
+    'html.sn-dark button:hover { background: #3b6294; }\n' +
+    'html.sn-dark .post-like, html.sn-dark .comment-del, html.sn-dark [data-fmt], ' +
+    'html.sn-dark [data-friendaction="unfriend"], html.sn-dark [data-friendaction="decline"], ' +
+    'html.sn-dark [data-subaction="unsub"], html.sn-dark [data-action="toggle-edit-profile"], html.sn-dark a[data-action="convo"] { ' +
+      'background: #232730; color: #8ab4f8; border-color: #363c48; }\n' +
+    'html.sn-dark .post-like:hover, html.sn-dark .comment-del:hover, html.sn-dark [data-fmt]:hover { background: #2c313c; }\n' +
+    'html.sn-dark .post-del { background: #3b1c1c; color: #f28b82; border-color: #5c2b2b; }\n' +
+    'html.sn-dark .post-del:hover { background: #4a2323; }\n' +
+    'html.sn-dark footer { background: #1e2127; border-top-color: #2b303a; color: #8892a4; }';
+  document.head.appendChild(darkStyle);
+
+  function applyTheme(isDark) {
+    if (isDark) document.documentElement.classList.add('sn-dark');
+    else document.documentElement.classList.remove('sn-dark');
+    var btn = $('theme-toggle-btn');
+    if (btn) btn.textContent = isDark ? '☀️ Светлая' : '🌙 Тёмная';
+  }
+
+  var savedDark = _get.call(localStorage, THEME_KEY) === '1';
+  applyTheme(savedDark);
+
+  var _updateNavTheme = updateNav;
+  updateNav = function () {
+    _updateNavTheme();
+    var nav = $('top-nav');
+    if (!nav || $('theme-toggle-btn')) return;
+    var btn = document.createElement('a');
+    btn.href = '#';
+    btn.id = 'theme-toggle-btn';
+    var isDark = document.documentElement.classList.contains('sn-dark');
+    btn.textContent = isDark ? '☀️ Светлая' : '🌙 Тёмная';
+    btn.style.marginLeft = 'auto';
+    btn.style.borderLeft = '1px solid #c3cad4';
+    var userBold = nav.querySelector('b');
+    if (userBold) userBold.style.marginLeft = '0';
+
+    btn.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      var nextDark = !document.documentElement.classList.contains('sn-dark');
+      try { _set.call(localStorage, THEME_KEY, nextDark ? '1' : '0'); } catch (e) {}
+      applyTheme(nextDark);
+    });
+    nav.appendChild(btn);
+  };
+
+  if (typeof updateNav === 'function') updateNav();
 
 })();
