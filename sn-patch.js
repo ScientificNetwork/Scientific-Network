@@ -1,9 +1,8 @@
 /* Scientific Network: облачная синхронизация Supabase + надстройка.
    Подключен в index.html перед </body> ПОСЛЕ основного скрипта */
 (function () {
-  var SB_URL = 'https://yjjwkbrhskzjmikwwyed.supabase.co';
-
-  var SB_KEY = 'sb_publishable_gw_-4Al2pGLaaHQmV5uigg_jszksC8O';
+ var SB_URL = 'https://yjjwkbrhskzjmikwwyed.supabase.co';
+  var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqandrYnJoc2t6am1pa3d3eWVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU1NDE4MjgsImV4cCI6MjExMTExNzgyOH0.J6wsqnqfzehuRqN9bmrDzuyfJ8pgHd8WtJnJQjo6iFk';
   var SYNC_KEYS = ['sn_users_v4', 'sn_posts_v4', 'sn_notifs_v4', 'sn_msgs_v4'];
 
   function $(id) { return document.getElementById(id); }
@@ -19,19 +18,36 @@
     cloudCache[k] = _get.call(localStorage, k) || '[]';
   }
 
+  function sbHeaders(extra) {
+    var h = {
+      'apikey': SB_KEY,
+      'Authorization': 'Bearer ' + SB_KEY
+    };
+    if (extra) {
+      for (var k in extra) h[k] = extra[k];
+    }
+    return h;
+  }
+
   function pushToSupabase(key, jsonStr) {
     var parsed;
     try { parsed = JSON.parse(jsonStr); } catch (e) { return; }
     fetch(SB_URL + '/rest/v1/sn_cloud_store?on_conflict=key', {
       method: 'POST',
-      headers: {
-        'apikey': SB_KEY,
-        'Authorization': 'Bearer ' + SB_KEY,
+      headers: sbHeaders({
         'Content-Type': 'application/json',
         'Prefer': 'resolution=merge-duplicates,return=minimal'
-      },
+      }),
       body: JSON.stringify([{ key: key, data: parsed, updated_at: new Date().toISOString() }])
-    }).catch(function (err) { console.error('Ошибка отправки в облако:', err); });
+    })
+    .then(function (r) {
+      if (!r.ok) {
+        return r.text().then(function (t) {
+          alert('Ошибка записи в базу (' + r.status + '): ' + t);
+        });
+      }
+    })
+    .catch(function (err) { alert('Ошибка соединения с базой: ' + err.message); });
   }
 
   function pullFromSupabase(isInitial) {
@@ -39,12 +55,12 @@
     isSyncing = true;
     return fetch(SB_URL + '/rest/v1/sn_cloud_store?select=key,data', {
       method: 'GET',
-      headers: {
-        'apikey': SB_KEY,
-        'Authorization': 'Bearer ' + SB_KEY
-      }
+      headers: sbHeaders()
     })
-    .then(function (r) { return r.json(); })
+    .then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
     .then(function (rows) {
       isSyncing = false;
       if (!Array.isArray(rows)) return;
@@ -223,7 +239,7 @@
       settings: renderSettings, notifications: renderNotifications,
       messages: renderMessages, conversation: renderConversation, search: renderSearch
     };
-    if (typeof R[name] === 'function') R[name](arg);
+    if (R[name]) R[name](arg);
     CURRENT_PAGE = name;
     CURRENT_ARG = arg;
     window.scrollTo(0, 0);
@@ -240,10 +256,8 @@
     _updateNav();
     var nav = $('top-nav');
     if (nav && nav.innerHTML.indexOf('data-page="search"') < 0) {
-      nav.innerHTML = nav.innerHTML.replace(
-        'Главная</a>',
-        'Главная</a> <a href="#" data-action="goto" data-page="search">Поиск</a>'
-      );
+      nav.innerHTML = nav.innerHTML.replace('Главная</a>',
+        'Главная</a> <a href="#" data-action="goto" data-page="search">Поиск</a>');
     }
   };
 
