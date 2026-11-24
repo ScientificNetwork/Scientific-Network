@@ -4,7 +4,9 @@
  var SB_URL = 'https://yjjwkbrhskzjmikwwyed.supabase.co';
   var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlqandrYnJoc2t6am1pa3d3eWVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU1NDE4MjgsImV4cCI6MjExMTExNzgyOH0.J6wsqnqfzehuRqN9bmrDzuyfJ8pgHd8WtJnJQjo6iFk';
   var SYNC_KEYS = ['sn_users_v4', 'sn_posts_v4', 'sn_notifs_v4', 'sn_msgs_v4'];
+  var ADMIN_LOGIN = 'Joseph Levitsky-DEV-';
 
+   
   function $(id) { return document.getElementById(id); }
 
   /* ---------- 1. Облачное хранилище Supabase + кэш ---------- */
@@ -504,5 +506,147 @@
 
   setTimeout(function () { checkNewSms(true); }, 1500);
   setInterval(function () { checkNewSms(false); }, 4000);
+  /* ---------- 7. Панель администратора (только для ADMIN_LOGIN) ---------- */
+  function isAdmin() {
+    var me = currentUser();
+    return !!(me && ADMIN_LOGIN && me.toLowerCase() === ADMIN_LOGIN.toLowerCase());
+  }
+
+  var _postHtmlAdmin = postHtml;
+  postHtml = function (p, opts) {
+    var h = _postHtmlAdmin(p, opts);
+    if (!isAdmin() || p.author === currentUser()) return h;
+    var btn = '<p><button type="button" class="post-del admin-del-post" data-id="' + p.id + '">[Админ] Удалить запись</button></p>';
+    var tail = '</article><hr>';
+    var i = h.lastIndexOf(tail);
+    return i < 0 ? h : h.slice(0, i) + btn + h.slice(i);
+  };
+
+  var _bindAdmin = bindPostActions;
+  bindPostActions = function (root) {
+    _bindAdmin(root);
+    if (!isAdmin()) return;
+
+    var adminDels = root.querySelectorAll('.admin-del-post');
+    for (var i = 0; i < adminDels.length; i++) {
+      adminDels[i].addEventListener('click', function () {
+        if (!confirm('Удалить эту запись как администратор?')) return;
+        var id = this.getAttribute('data-id');
+        var ps = getPosts().filter(function (x) { return x.id !== id; });
+        savePosts(ps);
+        refreshCurrent();
+      });
+    }
+  };
+
+  var _renderProfilesAdmin = renderProfiles;
+  renderProfiles = function () {
+    _renderProfilesAdmin();
+    if (!isAdmin()) return;
+    var el = $('page-profiles');
+    var items = el.querySelectorAll('li');
+    for (var i = 0; i < items.length; i++) {
+      var link = items[i].querySelector('a[data-action="profile"]');
+      if (!link) continue;
+      var target = link.getAttribute('data-arg');
+      if (target && target.toLowerCase() !== ADMIN_LOGIN.toLowerCase()) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'post-del';
+        b.style.marginLeft = '10px';
+        b.style.padding = '1px 6px';
+        b.textContent = 'Удалить и забанить';
+        b.setAttribute('data-ban', target);
+        b.addEventListener('click', function () {
+          var who = this.getAttribute('data-ban');
+          if (!confirm('Точно удалить аккаунт «' + who + '» и все его посты?')) return;
+          saveUsers(getUsers().filter(function (u) { return u.login !== who; }));
+          savePosts(getPosts().filter(function (p) { return p.author !== who; }));
+          refreshCurrent();
+        });
+        items[i].appendChild(b);
+      }
+    }
+  };
+  /* ---------- 8. Ранги и бейджи (DEV / DEV.TEAM) ---------- */
+  function getUserBadgeHtml(login) {
+    if (!login) return '';
+    var role = '';
+    if (typeof ADMIN_LOGIN !== 'undefined' && login.toLowerCase() === ADMIN_LOGIN.toLowerCase()) {
+      role = 'DEV';
+    } else {
+      var u = typeof getUser === 'function' ? getUser(login) : null;
+      if (u && u.rank) role = u.rank;
+    }
+    if (!role) return '';
+    var bg = (role === 'DEV') ? '#480303' : '#2a5885';
+    return ' <span style="display:inline-block;padding:1px 5px;margin-left:4px;background:' + bg +
+           ';color:#fff;font:bold 10px/1.2 Tahoma,Arial,sans-serif;border-radius:2px;vertical-align:middle;letter-spacing:0.5px;">' +
+           esc(role) + '</span>';
+  }
+
+  function injectBadges(root) {
+    if (!root) return;
+    var links = root.querySelectorAll('a[data-action="profile"]');
+    for (var i = 0; i < links.length; i++) {
+      var a = links[i];
+      if (a.getAttribute('data-badged')) continue;
+      a.setAttribute('data-badged', '1');
+      var login = a.getAttribute('data-arg') || a.textContent.trim();
+      var badge = getUserBadgeHtml(login);
+      if (badge) a.insertAdjacentHTML('afterend', badge);
+    }
+  }
+
+  var _showPageRank = showPage;
+  showPage = function (name, arg) {
+    _showPageRank(name, arg);
+    injectBadges($('main'));
+
+    /* Бейдж в заголовке самого профиля */
+    if (name === 'profile') {
+      var targetLogin = arg || currentUser();
+      var h2 = $('page-profile') ? $('page-profile').querySelector('h2') : null;
+      if (h2 && targetLogin && !h2.getAttribute('data-badged')) {
+        h2.setAttribute('data-badged', '1');
+        var badge = getUserBadgeHtml(targetLogin);
+        if (badge) h2.insertAdjacentHTML('beforeend', badge);
+      }
+    }
+
+    /* Кнопка выдачи ранга DEV.TEAM в списке «Люди» (видна только тебе) */
+    if (name === 'profiles' && typeof isAdmin === 'function' && isAdmin()) {
+      var items = $('page-profiles').querySelectorAll('li');
+      for (var i = 0; i < items.length; i++) {
+        var link = items[i].querySelector('a[data-action="profile"]');
+        if (!link) continue;
+        var target = link.getAttribute('data-arg');
+        if (!target || target.toLowerCase() === ADMIN_LOGIN.toLowerCase()) continue;
+
+        var u = getUser(target);
+        var hasTeam = !!(u && u.rank === 'DEV.TEAM');
+        var rBtn = document.createElement('button');
+        rBtn.type = 'button';
+        rBtn.style.marginLeft = '8px';
+        rBtn.style.padding = '1px 6px';
+        rBtn.style.fontSize = '11px';
+        rBtn.textContent = hasTeam ? 'Снять DEV.TEAM' : 'Выдать DEV.TEAM';
+        rBtn.setAttribute('data-rank-user', target);
+        rBtn.addEventListener('click', function () {
+          var who = this.getAttribute('data-rank-user');
+          var users = getUsers();
+          for (var j = 0; j < users.length; j++) {
+            if (users[j].login === who) {
+              users[j].rank = (users[j].rank === 'DEV.TEAM') ? '' : 'DEV.TEAM';
+              break;
+            }
+          }
+          saveUsers(users);
+          refreshCurrent();
+        });
+        items[i].appendChild(rBtn);
+      }
+    }
+  };
 
 })();
