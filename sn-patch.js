@@ -460,4 +460,49 @@
   /* Запуск начальной загрузки из облака и автообновление каждые 4 сек */
   pullFromSupabase(true);
   setInterval(function () { pullFromSupabase(false); }, 4000);
+     /* ---------- 6. Звуковое уведомление при новом СМС ---------- */
+  function playSmsSound() {
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      var ctx = new Ctx();
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.setValueAtTime(1174.66, ctx.currentTime + 0.09);
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.35);
+    } catch (e) {}
+  }
+
+  var knownMaxMsgTime = 0;
+  function checkNewSms(isFirstRun) {
+    var me = currentUser();
+    if (!me || typeof getMsgs !== 'function') return;
+    var msgs = getMsgs();
+    var latestIncoming = 0;
+    for (var i = 0; i < msgs.length; i++) {
+      var m = msgs[i];
+      var isForMe = (m.to === me) || (m.participants && m.participants.indexOf(me) >= 0 && m.from !== me && m.author !== me);
+      var ts = m.date || m.ts || m.time || 0;
+      if (isForMe && ts > latestIncoming) latestIncoming = ts;
+    }
+    if (isFirstRun) {
+      knownMaxMsgTime = latestIncoming;
+      return;
+    }
+    if (latestIncoming > knownMaxMsgTime) {
+      knownMaxMsgTime = latestIncoming;
+      playSmsSound();
+    }
+  }
+
+  setTimeout(function () { checkNewSms(true); }, 1500);
+  setInterval(function () { checkNewSms(false); }, 4000);
+
 })();
