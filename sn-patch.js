@@ -1,7 +1,8 @@
 /* Scientific Network: облачная синхронизация Supabase + надстройка.
    Подключен в index.html перед </body> ПОСЛЕ основного скрипта */
 (function () {
-  var SB_URL = 'https://supabase.co'; // Замените на https://<project-ref>.supabase.co
+  var SB_URL = 'https://yjjwkbrhskzjmikwwyed.supabase.co';
+
   var SB_KEY = 'sb_publishable_gw_-4Al2pGLaaHQmV5uigg_jszksC8O';
   var SYNC_KEYS = ['sn_users_v4', 'sn_posts_v4', 'sn_notifs_v4', 'sn_msgs_v4'];
 
