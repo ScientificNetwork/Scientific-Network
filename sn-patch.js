@@ -853,5 +853,19 @@
   };
 
   if (typeof updateNav === 'function') updateNav();
+  /* ---------- 11. Отправка СМС по Enter в переписке ---------- */
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Enter' && !ev.shiftKey) {
+      var el = ev.target;
+      if (el && el.tagName === 'TEXTAREA' && el.closest('#page-conversation')) {
+        ev.preventDefault();
+        var form = el.closest('form');
+        if (form) {
+          var btn = form.querySelector('button[type="submit"]');
+          if (btn) btn.click();
+        }
+      }
+    }
+  });
 
 })();
